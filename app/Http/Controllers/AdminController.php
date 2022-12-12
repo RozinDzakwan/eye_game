@@ -1,0 +1,69 @@
+<?php
+
+namespace App\Http\Controllers;
+
+use App\Models\User;
+use Illuminate\Http\Request;
+
+class AdminController extends Controller
+{
+    public function index()
+    {
+        return view('admin.login');
+    }
+
+    public function printPDF(Request $request)
+    {
+        if ($request->password != 'U7YwrfBe3jbRucx36C') {
+            flash()->addFlash('error', 'Your password is wrong!!');
+            return redirect('/admin');
+        }
+
+        $fileName = 'players.csv';
+        $data_users = User::all();
+
+        $headers = array(
+            "Content-type"        => "text/csv",
+            "Content-Disposition" => "attachment; filename=$fileName",
+            "Pragma"              => "no-cache",
+            "Cache-Control"       => "must-revalidate, post-check=0, pre-check=0",
+            "Expires"             => "0"
+        );
+
+        $columns = array('No', 'Email', 'Firstname', 'Lastname', 'Age', 'Nickname', 'Player Team', 'Player Number', 'Player Name');
+
+        $callback = function () use ($data_users, $columns) {
+            $data_team = config('football-game');
+            $file = fopen('php://output', 'w');
+            fputcsv($file, $columns);
+
+            $no = 1;
+            foreach ($data_users as $data_user) {
+                $row['No'] = $no++;
+                $row['Email']  = $data_user->email;
+                $row['Firstname']    = $data_user->name;
+                $row['Lastname']    = $data_user->lastname;
+                $row['Age']  = $data_user->age;
+                $row['Nickname']  = $data_user->nickname;
+                $row['Player Team']  = $data_user->player_team;
+                $data_player_team = $data_team[$data_user->player_team];
+
+                //check custom player
+                if (is_numeric($data_user->player_name)) {
+                    $data_shirt = $data_player_team['player-team'][$data_user->player_name];
+                } else {
+                    $data_shirt = $data_user->player_name;
+                }
+                $data_player = explode("-", $data_shirt);
+                $row['Player Number']  = $data_player[0];
+                $row['Player Name']  = $data_player[1];
+
+                fputcsv($file, array($row['No'], $row['Email'], $row['Firstname'], $row['Lastname'], $row['Age'], $row['Nickname'], $row['Player Team'], $row['Player Number'], $row['Player Name']));
+            }
+
+            fclose($file);
+        };
+
+        return response()->stream($callback, 200, $headers);
+    }
+}
